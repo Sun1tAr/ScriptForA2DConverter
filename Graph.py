@@ -6,7 +6,7 @@ import sys
 from serial.tools import list_ports
 
 # Константы по умолчанию
-DEFAULT_BUFFER_SIZE = 5000
+DEFAULT_BUFFER_SIZE = 500
 DEFAULT_VREF = 3.3
 DEFAULT_BITS = 10
 DEFAULT_BAUDRATE = 115200
@@ -88,7 +88,7 @@ class RealTimePlot:
         # Элементы управления масштабом по X
         x_scale_label = QtWidgets.QLabel("Масштаб X:")
         self.x_scale_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.x_scale_slider.setRange(1, 300)
+        self.x_scale_slider.setRange(1, 100)
         self.x_scale_slider.setValue(100)
         self.x_scale_value = QtWidgets.QLabel("100%")
 
@@ -129,16 +129,50 @@ class RealTimePlot:
         main_layout.addLayout(init_panel)
         main_layout.addLayout(control_panel)
 
-        # Создаем виджет графика
-        self.win = pg.GraphicsLayoutWidget()
-        main_layout.addWidget(self.win)
+        # Создаем виджет графика и панель значений
+        self.win = QtWidgets.QWidget()
+        plot_layout = QtWidgets.QHBoxLayout()
+        self.win.setLayout(plot_layout)
 
-        # Настройка графика
-        self.plot = self.win.addPlot()
+        # График
+        self.graph_widget = pg.GraphicsLayoutWidget()
+        self.plot = self.graph_widget.addPlot()
         self.plot.setLabel('left', 'Напряжение', units='В')
-        self.plot.setLabel('bottom', 'Время', units='')
-        self.plot.setLabel
+        self.plot.setLabel('bottom', 'Время', units='отсчёты')
         self.plot.showGrid(x=True, y=True)
+
+        # Панель с текущими значениями
+        self.values_panel = QtWidgets.QGroupBox("Текущие значения")
+        values_layout = QtWidgets.QVBoxLayout()
+
+        # Метки для отображения значений
+        self.current_value_label = QtWidgets.QLabel("Текущее: --- В")
+        self.min_value_label = QtWidgets.QLabel("Минимум: --- В")
+        self.max_value_label = QtWidgets.QLabel("Максимум: --- В")
+        self.avg_value_label = QtWidgets.QLabel("Среднее: --- В")
+
+        # Настройка шрифтов для значений
+        value_font = QtWidgets.QLabel().font()
+        value_font.setPointSize(12)
+        self.current_value_label.setFont(value_font)
+        self.min_value_label.setFont(value_font)
+        self.max_value_label.setFont(value_font)
+        self.avg_value_label.setFont(value_font)
+
+        # Добавляем метки на панель
+        values_layout.addWidget(self.current_value_label)
+        values_layout.addWidget(self.min_value_label)
+        values_layout.addWidget(self.max_value_label)
+        values_layout.addWidget(self.avg_value_label)
+        values_layout.addStretch()
+        self.values_panel.setLayout(values_layout)
+
+        # Добавляем график и панель значений в layout
+        plot_layout.addWidget(self.graph_widget, 3)
+        plot_layout.addWidget(self.values_panel, 1)
+
+        # Добавляем виджет в основной layout
+        main_layout.addWidget(self.win)
 
         # Инициализация данных (пока пустые)
         self.data = np.array([])
@@ -243,9 +277,28 @@ class RealTimePlot:
         self.stop_btn.setEnabled(False)
         self.pause_btn.setIcon(self.app.style().standardIcon(QtWidgets.QStyle.SP_MediaPause))
 
-        # Очищаем график
+        # Очищаем график и значения
         self.data = np.array([])
         self.curve.setData(self.data)
+        self.update_value_labels()
+
+    def update_value_labels(self):
+        """Обновление меток с текущими значениями"""
+        if len(self.data) > 0:
+            current = self.data[-1]
+            min_val = np.min(self.data)
+            max_val = np.max(self.data)
+            avg_val = np.mean(self.data)
+
+            self.current_value_label.setText(f"Текущее: {current:.3f} В")
+            self.min_value_label.setText(f"Минимум: {min_val:.3f} В")
+            self.max_value_label.setText(f"Максимум: {max_val:.3f} В")
+            self.avg_value_label.setText(f"Среднее: {avg_val:.3f} В")
+        else:
+            self.current_value_label.setText("Текущее: --- В")
+            self.min_value_label.setText("Минимум: --- В")
+            self.max_value_label.setText("Максимум: --- В")
+            self.avg_value_label.setText("Среднее: --- В")
 
     def update_x_scale(self):
         """Обновление масштаба по оси X"""
@@ -308,6 +361,9 @@ class RealTimePlot:
 
                 # Обновление графика
                 self.curve.setData(self.data)
+
+                # Обновление значений на панели
+                self.update_value_labels()
 
                 # Периодический вывод в консоль для отладки
                 self.counter += 1
